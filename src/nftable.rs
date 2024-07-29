@@ -14,7 +14,7 @@ fn generate_statements(
     port_field: &str,
     proto: i32,
     proto_name: &str,
-    queue_num: u32,
+    queue_num: u16,
 ) -> Vec<Statement> {
     let set_name = format!("@{set_name}");
     vec![
@@ -36,7 +36,7 @@ fn generate_statements(
             op: Operator::IN,
         }),
         Statement::Queue(Queue {
-            num: Expression::Number(queue_num),
+            num: Expression::Number(queue_num as u32),
             flags: None,
         }),
     ]
@@ -67,7 +67,7 @@ fn generate_chains(table: &str) -> [NfListObject; 2] {
     ]
 }
 
-fn generate_rules(table: &str, set_name: &str, proto: i32, queue_num: u32) -> [NfListObject; 2] {
+fn generate_rules(table: &str, set_name: &str, proto: i32, queue_num: u16) -> [NfListObject; 2] {
     let proto_name = match proto {
         libc::IPPROTO_TCP => "tcp",
         libc::IPPROTO_UDP => "udp",
@@ -110,6 +110,7 @@ fn generate_set(table: &str, name: &str) -> NfListObject {
     })
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum NfProtocol {
     TCP,
     UDP,
@@ -125,7 +126,7 @@ pub struct NfTable {
 }
 
 impl NfTable {
-    pub fn new(queue_num: u32) -> Result<Self, NftablesError> {
+    pub fn new(queue_num: u16) -> Result<Self, NftablesError> {
         let table_name = "pk9".to_string();
         let table_obj = generate_table(&table_name);
         let udp_set_name = format!("{table_name}-udp");
@@ -194,6 +195,9 @@ impl Drop for NfTable {
         let mut batch = Batch::new();
         batch.delete(self.table_obj.clone());
         let ruleset = batch.to_nftables();
-        helper::apply_ruleset(&ruleset, None, None).unwrap_or_default();
+        match helper::apply_ruleset(&ruleset, None, None) {
+            Ok(_) => {}
+            Err(e) => eprintln!("[!] could not unload nftables rules: {e}"),
+        }
     }
 }
