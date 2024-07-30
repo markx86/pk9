@@ -1,43 +1,34 @@
 mod nfqueue;
 mod nftable;
+mod packet;
 
 use nfqueue::{NfAction, NfActions};
 use nftable::{NfPort, NfProtocol};
+use packet::L4Header;
 
 const QUEUE_NUM: u16 = 0;
 
 struct SimpleActions {}
 
 impl NfActions for SimpleActions {
-    fn filter(&mut self, protocol: NfProtocol, payload: &[u8]) -> NfAction {
-        match protocol {
-            NfProtocol::TCP => {
-                let hdr_size = if let Some(v) = payload.get(12) {
-                    (*v & 0xf0) >> 2
-                } else {
-                    return NfAction::Drop;
-                };
-                let (_, data) = payload.split_at(hdr_size as usize);
-                if let Some(p) = data.windows(4).position(|w| w == "ciao".as_bytes()) {
-                    println!("[+] found salute @ {p}");
+    fn filter(&mut self, l4_header: &L4Header, payload: &[u8]) -> NfAction {
+        match l4_header {
+            L4Header::TCP(_) => {
+                if let Some(p) = payload.windows(4).position(|w| w == "ciao".as_bytes()) {
+                    println!("[+] found salute at offset {p}");
                     NfAction::Transform
                 } else {
                     NfAction::Pass
                 }
             }
-            NfProtocol::UDP => NfAction::Pass,
+            L4Header::UDP(_) => NfAction::Pass,
         }
     }
-    fn transform(&mut self, protocol: NfProtocol, payload: &[u8]) -> Vec<u8> {
-        match protocol {
-            NfProtocol::TCP => {
-                let hdr_size = (payload[12] & 0xf0) >> 2;
-                let (hdr, data) = payload.split_at(hdr_size as usize);
-                let mut packet = hdr.to_vec();
-                packet.extend_from_slice(&data.to_ascii_uppercase());
-                packet
-            }
-            NfProtocol::UDP => payload.to_vec(),
+
+    fn transform(&mut self, l4_header: &L4Header, payload: &[u8]) -> Vec<u8> {
+        match l4_header {
+            L4Header::TCP(_) => payload.to_ascii_uppercase().to_vec(),
+            L4Header::UDP(_) => payload.to_vec(),
         }
     }
 }
