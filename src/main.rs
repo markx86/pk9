@@ -1,41 +1,41 @@
-mod nfqueue;
-mod nftable;
+#[cfg(target_os = "linux")]
+mod linux;
 mod packet;
 
-use nfqueue::{NfAction, NfActions};
-use nftable::{NfPort, NfProtocol};
-use packet::L4Header;
+use linux::nfqueue::NfQueue;
+use linux::nftable::{NfPort, NfProtocol, NfTable};
+use packet::{Actions, L4Header};
+
+use crate::packet::Verdict;
 
 const QUEUE_NUM: u16 = 0;
 
 struct SimpleActions {}
 
-impl NfActions for SimpleActions {
-    fn filter(&mut self, l4_header: &L4Header, payload: &[u8]) -> NfAction {
+impl Actions for SimpleActions {
+    fn filter(&mut self, l4_header: &L4Header, payload: &[u8]) -> Verdict {
         match l4_header {
             L4Header::TCP(_) => {
                 if let Some(p) = payload.windows(4).position(|w| w == "ciao".as_bytes()) {
                     println!("[+] found salute at offset {p}");
-                    NfAction::Transform
+                    Verdict::Transform
                 } else {
-                    NfAction::Pass
+                    Verdict::Pass
                 }
             }
-            L4Header::UDP(_) => NfAction::Pass,
         }
     }
 
     fn transform(&mut self, l4_header: &L4Header, payload: &[u8]) -> Vec<u8> {
         match l4_header {
             L4Header::TCP(_) => payload.to_ascii_uppercase().to_vec(),
-            L4Header::UDP(_) => payload.to_vec(),
         }
     }
 }
 
 fn main() -> std::io::Result<()> {
     let mut actions = SimpleActions {};
-    let mut queue = match nfqueue::NfQueue::new(QUEUE_NUM) {
+    let mut queue = match NfQueue::new(QUEUE_NUM) {
         Ok(q) => {
             println!("[+] nfqueue successfully created with id {QUEUE_NUM}");
             q
@@ -44,7 +44,7 @@ fn main() -> std::io::Result<()> {
             panic!("[!] could not create nfqueue: {e}");
         }
     };
-    let table = match nftable::NfTable::new(QUEUE_NUM) {
+    let table = match NfTable::new(QUEUE_NUM) {
         Ok(t) => {
             println!("[+] nftables rules loaded successfully");
             t

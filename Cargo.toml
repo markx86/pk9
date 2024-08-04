@@ -10,3 +10,14 @@ nftables = "0.4.1"
 nfq = "0.2.5"
 signal-hook = "0.3.17"
 libc = "0.2"
+
+[features]
+default = []
+udp = []
+bidirectional = []
+
+[profile.release]
+lto = true          # Enable link-time optimization
+codegen-units = 1   # Reduce number of codegen units to increase optimizations
+panic = 'abort'     # Abort on panic
+strip = true        # Strip symbols from binary

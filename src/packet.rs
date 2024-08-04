@@ -1,3 +1,14 @@
+pub enum Verdict {
+    Pass,
+    Drop,
+    Transform,
+}
+
+pub trait Actions {
+    fn filter(&mut self, l4_header: &L4Header, payload: &[u8]) -> Verdict;
+    fn transform(&mut self, l4_header: &L4Header, payload: &[u8]) -> Vec<u8>;
+}
+
 pub enum IpAddress {
     IPv4(u32),
     IPv6(u128),
@@ -292,10 +303,12 @@ impl TcpHeader {
     }
 }
 
+#[cfg(feature = "udp")]
 pub struct UdpHeader {
     bytes: Vec<u8>,
 }
 
+#[cfg(feature = "udp")]
 impl UdpHeader {
     pub fn from(bytes: &[u8]) -> Option<Self> {
         if bytes.len() < 8 {
@@ -356,6 +369,7 @@ impl UdpHeader {
 
 pub enum L4Header {
     TCP(TcpHeader),
+    #[cfg(feature = "udp")]
     UDP(UdpHeader),
 }
 
@@ -371,6 +385,7 @@ pub fn unwrap_l4_packet<'a>(
                 return None;
             }
         }
+        #[cfg(feature = "udp")]
         libc::IPPROTO_UDP => {
             if let Some(udp_header) = UdpHeader::from(&payload) {
                 L4Header::UDP(udp_header)
@@ -385,6 +400,7 @@ pub fn unwrap_l4_packet<'a>(
     };
     let data = match l4_header {
         L4Header::TCP(ref tcp) => &payload[tcp.length()..],
+        #[cfg(feature = "udp")]
         L4Header::UDP(ref udp) => &payload[udp.length()..],
     };
     Some((l4_header, data))
@@ -393,6 +409,7 @@ pub fn unwrap_l4_packet<'a>(
 pub fn recompute_l4_checksum(ip_header: &IpHeader, l4_header: &mut L4Header, data: &[u8]) {
     match l4_header {
         L4Header::TCP(tcp) => tcp.update_checksum(ip_header, data),
+        #[cfg(feature = "udp")]
         L4Header::UDP(udp) => udp.update_checksum(ip_header, data),
     }
 }
