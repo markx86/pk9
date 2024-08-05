@@ -7,9 +7,11 @@ use std::{
 };
 
 use libc::{EAGAIN, EWOULDBLOCK};
-use nfq::{Queue, Verdict};
+use nfq::Queue;
 
-use crate::{recompute_l4_checksum, unwrap_ip_packet, unwrap_l4_packet, Actions, L4Header};
+use crate::{
+    recompute_l4_checksum, unwrap_ip_packet, unwrap_l4_packet, Actions, L4Header, Verdict,
+};
 
 pub struct NfQueue(Queue);
 
@@ -45,8 +47,8 @@ impl NfQueue {
                 if let Some((mut l4_header, payload)) = unwrap_l4_packet(&ip_header, payload) {
                     let action = actions.filter(&l4_header, payload);
                     verdict = match action {
-                        Verdict::Pass => Verdict::Accept,
-                        Verdict::Drop => Verdict::Drop,
+                        Verdict::Pass => nfq::Verdict::Accept,
+                        Verdict::Drop => nfq::Verdict::Drop,
                         Verdict::Transform => {
                             let initial_length = payload.len();
                             let mut data = actions.transform(&l4_header, payload);
@@ -65,14 +67,14 @@ impl NfQueue {
                             });
                             payload.extend_from_slice(&data);
                             msg.set_payload(payload);
-                            Verdict::Accept
+                            nfq::Verdict::Accept
                         }
                     };
                 } else {
-                    verdict = Verdict::Accept;
+                    verdict = nfq::Verdict::Accept;
                 }
             } else {
-                verdict = Verdict::Drop;
+                verdict = nfq::Verdict::Drop;
             }
             msg.set_verdict(verdict);
             self.0.verdict(msg)?;
