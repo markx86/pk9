@@ -9,10 +9,7 @@ use std::{
 use libc::{EAGAIN, EWOULDBLOCK};
 use nfq::{Queue, Verdict};
 
-use crate::{
-    packet::{self, Actions},
-    L4Header,
-};
+use crate::{recompute_l4_checksum, unwrap_ip_packet, unwrap_l4_packet, Actions, L4Header};
 
 pub struct NfQueue(Queue);
 
@@ -44,22 +41,20 @@ impl NfQueue {
             println!("[+] got pkt!");
             let payload = msg.get_payload();
             let verdict;
-            if let Some((ip_header, payload)) = packet::unwrap_ip_packet(payload) {
-                if let Some((mut l4_header, payload)) =
-                    packet::unwrap_l4_packet(&ip_header, payload)
-                {
+            if let Some((ip_header, payload)) = unwrap_ip_packet(payload) {
+                if let Some((mut l4_header, payload)) = unwrap_l4_packet(&ip_header, payload) {
                     let action = actions.filter(&l4_header, payload);
                     verdict = match action {
-                        packet::Verdict::Pass => Verdict::Accept,
-                        packet::Verdict::Drop => Verdict::Drop,
-                        packet::Verdict::Transform => {
+                        Verdict::Pass => Verdict::Accept,
+                        Verdict::Drop => Verdict::Drop,
+                        Verdict::Transform => {
                             let initial_length = payload.len();
                             let mut data = actions.transform(&l4_header, payload);
                             if data.len() != initial_length {
                                 eprintln!("[~] data extension is not supported, yet");
                                 data.resize(initial_length, 0);
                             }
-                            packet::recompute_l4_checksum(&ip_header, &mut l4_header, &data);
+                            recompute_l4_checksum(&ip_header, &mut l4_header, &data);
                             let mut payload = Vec::new();
                             payload.extend_from_slice(ip_header.bytes());
                             payload.extend_from_slice(match l4_header {

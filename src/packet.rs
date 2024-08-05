@@ -4,12 +4,6 @@ pub enum Verdict {
     Transform,
 }
 
-pub trait Actions {
-    fn busy_wait(&mut self);
-    fn filter(&mut self, l4_header: &L4Header, payload: &[u8]) -> Verdict;
-    fn transform(&mut self, l4_header: &L4Header, payload: &[u8]) -> Vec<u8>;
-}
-
 pub enum IpAddress {
     IPv4(u32),
     IPv6(u128),

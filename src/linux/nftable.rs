@@ -7,6 +7,8 @@ use nftnl::{
     Batch, Chain, FinalizedBatch, Hook, MsgType, Policy, ProtoFamily, Rule, Table,
 };
 
+use crate::{Port, Protocol, Role};
+
 const FAMILY: ProtoFamily = ProtoFamily::Inet;
 
 struct InetService(u16);
@@ -17,26 +19,6 @@ impl SetKey for InetService {
 
     fn data(&self) -> Box<[u8]> {
         Box::new(self.0.to_be_bytes())
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum NfProtocol {
-    #[cfg(feature = "tcp")]
-    TCP,
-    #[cfg(feature = "udp")]
-    UDP,
-}
-
-impl Display for NfProtocol {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            #[cfg(feature = "tcp")]
-            NfProtocol::TCP => "tcp",
-            #[cfg(feature = "udp")]
-            NfProtocol::UDP => "udp",
-        };
-        f.write_str(name)
     }
 }
 
@@ -65,18 +47,10 @@ impl Display for NfHook {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum NfRole {
-    Client,
-    Server,
-}
-
-pub struct NfPort(pub u16, pub NfProtocol);
-
 fn new_rules<'a>(
     chain: &'a Chain,
     hook: NfHook,
-    role: NfRole,
+    role: Role,
     tcp_set: Option<&Set<InetService>>,
     udp_set: Option<&Set<InetService>>,
 ) -> Vec<Rule<'a>> {
@@ -88,8 +62,8 @@ fn new_rules<'a>(
             tcp_rule.add_expr(&nft_expr!(meta l4proto));
             tcp_rule.add_expr(&nft_expr!(cmp == libc::IPPROTO_TCP as u8));
             tcp_rule.add_expr(
-                &(if (role == NfRole::Client && hook == NfHook::Out)
-                    || (role == NfRole::Server && hook == NfHook::In)
+                &(if (role == Role::Client && hook == NfHook::Out)
+                    || (role == Role::Server && hook == NfHook::In)
                 {
                     nft_expr!(payload tcp dport)
                 } else {
@@ -107,8 +81,8 @@ fn new_rules<'a>(
             udp_rule.add_expr(&nft_expr!(meta l4proto));
             udp_rule.add_expr(&nft_expr!(cmp == libc::IPPROTO_UDP as u8));
             udp_rule.add_expr(
-                &(if (role == NfRole::Client && hook == NfHook::Out)
-                    || (role == NfRole::Server && hook == NfHook::In)
+                &(if (role == Role::Client && hook == NfHook::Out)
+                    || (role == Role::Server && hook == NfHook::In)
                 {
                     nft_expr!(payload udp dport)
                 } else {
@@ -136,7 +110,7 @@ fn new_chain(
     Ok(chain)
 }
 
-fn new_set(table: &Table, id: u32, protocol: NfProtocol) -> Result<Set<InetService>, Utf8Error> {
+fn new_set(table: &Table, id: u32, protocol: Protocol) -> Result<Set<InetService>, Utf8Error> {
     let table_name = table.get_name().to_str()?;
     let set_name = format!("{table_name}-{protocol}");
     let set = Set::new(&CString::new(set_name.as_str()).unwrap(), id, table, FAMILY);
@@ -180,7 +154,7 @@ pub struct NfTable {
 }
 
 impl NfTable {
-    pub fn new(table_name: &str, role: NfRole) -> Result<Self, Error> {
+    pub fn new(table_name: &str, role: Role) -> Result<Self, Error> {
         let mut batch = Batch::new();
         let table = new_table(table_name);
         let table_name = table_name.to_string();
@@ -188,7 +162,7 @@ impl NfTable {
         let tcp_set = {
             #[cfg(feature = "tcp")]
             {
-                let set = new_set(&table, 1337, NfProtocol::TCP).unwrap();
+                let set = new_set(&table, 1337, Protocol::TCP).unwrap();
                 batch.add(&set, MsgType::Add);
                 Some(set)
             }
@@ -198,7 +172,7 @@ impl NfTable {
         let udp_set = {
             #[cfg(feature = "udp")]
             {
-                let set = new_set(&table, 1338, NfProtocol::UDP).unwrap();
+                let set = new_set(&table, 1338, Protocol::UDP).unwrap();
                 batch.add(&set, MsgType::Add);
                 Some(set)
             }
@@ -228,17 +202,17 @@ impl NfTable {
         Ok(Self { table_name })
     }
 
-    pub fn add_ports(&self, ports: &[NfPort]) -> Result<(), Error> {
+    pub fn add_ports(&self, ports: &[Port]) -> Result<(), Error> {
         #[cfg(feature = "tcp")]
         let mut tcp_elem = Vec::new();
         #[cfg(feature = "udp")]
         let mut udp_elem = Vec::new();
-        ports.iter().for_each(|NfPort(port, proto)| {
+        ports.iter().for_each(|Port(port, proto)| {
             let v = match proto {
                 #[cfg(feature = "tcp")]
-                NfProtocol::TCP => &mut tcp_elem,
+                Protocol::TCP => &mut tcp_elem,
                 #[cfg(feature = "udp")]
-                NfProtocol::UDP => &mut udp_elem,
+                Protocol::UDP => &mut udp_elem,
             };
             v.push(InetService(*port));
         });
@@ -249,14 +223,14 @@ impl NfTable {
 
         #[cfg(feature = "tcp")]
         if tcp_elem.len() > 0 {
-            let mut set = new_set(&table, 1337, NfProtocol::TCP).unwrap();
+            let mut set = new_set(&table, 1337, Protocol::TCP).unwrap();
             tcp_elem.iter().for_each(|p| set.add(p));
             set.elems_iter().for_each(|e| batch.add(&e, MsgType::Add));
         }
 
         #[cfg(feature = "udp")]
         if udp_elem.len() > 0 {
-            let mut set = new_set(&table, 1338, NfProtocol::UDP).unwrap();
+            let mut set = new_set(&table, 1338, Protocol::UDP).unwrap();
             udp_elem.iter().for_each(|p| set.add(p));
             set.elems_iter().for_each(|e| batch.add(&e, MsgType::Add));
         }
