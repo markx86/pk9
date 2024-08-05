@@ -9,9 +9,9 @@ use nftnl::{
 
 const FAMILY: ProtoFamily = ProtoFamily::Inet;
 
-struct PortValue(u16);
+struct InetService(u16);
 
-impl SetKey for PortValue {
+impl SetKey for InetService {
     const TYPE: u32 = 13;
     const LEN: u32 = 2;
 
@@ -31,7 +31,9 @@ pub enum NfProtocol {
 impl Display for NfProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
+            #[cfg(feature = "tcp")]
             NfProtocol::TCP => "tcp",
+            #[cfg(feature = "udp")]
             NfProtocol::UDP => "udp",
         };
         f.write_str(name)
@@ -40,9 +42,7 @@ impl Display for NfProtocol {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum NfHook {
-    #[cfg(feature = "output")]
     Out,
-    #[cfg(feature = "input")]
     In,
 }
 
@@ -77,8 +77,8 @@ fn new_rules<'a>(
     chain: &'a Chain,
     hook: NfHook,
     role: NfRole,
-    tcp_set: Option<&Set<PortValue>>,
-    udp_set: Option<&Set<PortValue>>,
+    tcp_set: Option<&Set<InetService>>,
+    udp_set: Option<&Set<InetService>>,
 ) -> Vec<Rule<'a>> {
     vec![
         #[cfg(feature = "tcp")]
@@ -136,7 +136,7 @@ fn new_chain(
     Ok(chain)
 }
 
-fn new_set(table: &Table, id: u32, protocol: NfProtocol) -> Result<Set<PortValue>, Utf8Error> {
+fn new_set(table: &Table, id: u32, protocol: NfProtocol) -> Result<Set<InetService>, Utf8Error> {
     let table_name = table.get_name().to_str()?;
     let set_name = format!("{table_name}-{protocol}");
     let set = Set::new(&CString::new(set_name.as_str()).unwrap(), id, table, FAMILY);
@@ -240,7 +240,7 @@ impl NfTable {
                 #[cfg(feature = "udp")]
                 NfProtocol::UDP => &mut udp_elem,
             };
-            v.push(PortValue(*port));
+            v.push(InetService(*port));
         });
 
         let table = new_table(&self.table_name);

@@ -13,7 +13,7 @@ signal-hook = "0.3.17"
 libc = "0.2"
 
 [features]
-default = ["tcp", "udp", "input", "output"]
+default = ["udp", "tcp", "output", "input"]
 udp = []
 tcp = []
 input = []

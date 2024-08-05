@@ -9,18 +9,19 @@ use std::{
 use libc::{EAGAIN, EWOULDBLOCK};
 use nfq::{Queue, Verdict};
 
-use crate::packet::{self, Actions, L4Header};
+use crate::{
+    packet::{self, Actions},
+    L4Header,
+};
 
-pub struct NfQueue {
-    q: Queue,
-}
+pub struct NfQueue(Queue);
 
 impl NfQueue {
     pub fn new() -> Result<Self, Error> {
         let mut q = Queue::open()?;
         q.bind(0)?;
         q.set_nonblocking(true);
-        Ok(Self { q })
+        Ok(Self(q))
     }
 
     pub fn run_with(&mut self, actions: &mut dyn Actions) -> Result<(), Error> {
@@ -28,7 +29,7 @@ impl NfQueue {
         signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&term))?;
         println!("[*] waiting for packets");
         while !term.load(Ordering::Relaxed) {
-            let mut msg = match self.q.recv() {
+            let mut msg = match self.0.recv() {
                 Ok(msg) => msg,
                 Err(e) => {
                     if let Some(errno) = e.raw_os_error() {
@@ -79,8 +80,17 @@ impl NfQueue {
                 verdict = Verdict::Drop;
             }
             msg.set_verdict(verdict);
-            self.q.verdict(msg)?;
+            self.0.verdict(msg)?;
         }
         Ok(())
+    }
+}
+
+impl Drop for NfQueue {
+    fn drop(&mut self) {
+        match self.0.unbind(0) {
+            Ok(()) => (),
+            Err(e) => eprintln!("[!] could not unbind nfqueue: {e}"),
+        }
     }
 }
