@@ -5,7 +5,7 @@ use crate::{L4Header, Verdict};
 pub trait Actions {
     fn busy_wait(&mut self);
     fn filter(&mut self, l4_header: &L4Header, payload: &[u8]) -> Verdict;
-    fn transform(&mut self, l4_header: &L4Header, payload: &[u8]) -> Vec<u8>;
+    fn transform(&mut self, l4_header: &mut L4Header, payload: &[u8]) -> Vec<u8>;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

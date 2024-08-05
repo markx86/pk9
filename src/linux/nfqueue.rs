@@ -51,7 +51,7 @@ impl NfQueue {
                         Verdict::Drop => nfq::Verdict::Drop,
                         Verdict::Transform => {
                             let initial_length = payload.len();
-                            let mut data = actions.transform(&l4_header, payload);
+                            let mut data = actions.transform(&mut l4_header, payload);
                             if data.len() != initial_length {
                                 eprintln!("[~] data extension is not supported, yet");
                                 data.resize(initial_length, 0);

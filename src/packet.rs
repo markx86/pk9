@@ -286,6 +286,18 @@ impl TcpHeader {
         }
     }
 
+    pub fn set_timestamp(&mut self, timestamp: u32) {
+        if let Some((ts_off, _)) = self.get_option_offset_and_size(5) {
+            let (mut start, end) = (ts_off + 2, ts_off + 6);
+            let bytes = timestamp.to_be_bytes();
+            bytes.iter().for_each(|b| {
+                assert!(start < end);
+                self.bytes[start] = *b;
+                start += 1;
+            });
+        }
+    }
+
     pub fn length(&self) -> usize {
         (self.bytes[12] & 0xf0) as usize >> 2
     }
