@@ -6,15 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nftables = "0.4.1"
+mnl = "0.2.2"
+nftnl = "0.6.2"
 nfq = "0.2.5"
 signal-hook = "0.3.17"
 libc = "0.2"
 
 [features]
-default = []
+default = ["tcp", "udp", "input", "output"]
 udp = []
-bidirectional = []
+tcp = []
+input = []
+output = []
 
 [profile.release]
 lto = true          # Enable link-time optimization
