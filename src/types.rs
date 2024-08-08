@@ -1,9 +1,14 @@
-use std::fmt::Display;
+use std::{fmt::Display, io::Error};
 
 use crate::{L4Header, Verdict};
 
+pub trait PortManager {
+    fn add_ports(&mut self, ports: &[Port]) -> Result<(), Error>;
+    fn remove_ports(&mut self, ports: &[Port]) -> Result<(), Error>;
+}
+
 pub trait Actions {
-    fn busy_wait(&mut self);
+    fn busy_wait(&mut self, port_mgr: &mut dyn PortManager);
     fn filter(&mut self, l4_header: &L4Header, payload: &[u8]) -> Verdict;
     fn transform(&mut self, l4_header: &mut L4Header, payload: &[u8]) -> Vec<u8>;
 }

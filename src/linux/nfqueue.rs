@@ -13,6 +13,8 @@ use crate::{
     recompute_l4_checksum, unwrap_ip_packet, unwrap_l4_packet, Actions, L4Header, Verdict,
 };
 
+use super::nftable::NfTable;
+
 pub struct NfQueue(Queue);
 
 impl NfQueue {
@@ -23,7 +25,11 @@ impl NfQueue {
         Ok(Self(q))
     }
 
-    pub fn run_with(&mut self, actions: &mut dyn Actions) -> Result<(), Error> {
+    pub fn run_with(
+        &mut self,
+        table: &mut NfTable,
+        actions: &mut dyn Actions,
+    ) -> Result<(), Error> {
         let term = Arc::new(AtomicBool::new(false));
         signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&term))?;
         println!("[*] waiting for packets");
@@ -33,7 +39,7 @@ impl NfQueue {
                 Err(e) => {
                     if let Some(errno) = e.raw_os_error() {
                         if errno == EWOULDBLOCK || errno == EAGAIN {
-                            actions.busy_wait();
+                            actions.busy_wait(table);
                             continue;
                         }
                     }

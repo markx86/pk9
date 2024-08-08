@@ -7,7 +7,7 @@ use nftnl::{
     Batch, Chain, FinalizedBatch, Hook, MsgType, Policy, ProtoFamily, Rule, Table,
 };
 
-use crate::{Port, Protocol, Role};
+use crate::{Port, PortManager, Protocol, Role};
 
 const FAMILY: ProtoFamily = ProtoFamily::Inet;
 
@@ -202,7 +202,7 @@ impl NfTable {
         Ok(Self { table_name })
     }
 
-    pub fn add_ports(&self, ports: &[Port]) -> Result<(), Error> {
+    fn add_remove_ports(&self, ports: &[Port], action: MsgType) -> Result<(), Error> {
         #[cfg(feature = "tcp")]
         let mut tcp_elem = Vec::new();
         #[cfg(feature = "udp")]
@@ -225,20 +225,30 @@ impl NfTable {
         if tcp_elem.len() > 0 {
             let mut set = new_set(&table, 1337, Protocol::TCP).unwrap();
             tcp_elem.iter().for_each(|p| set.add(p));
-            set.elems_iter().for_each(|e| batch.add(&e, MsgType::Add));
+            set.elems_iter().for_each(|e| batch.add(&e, action));
         }
 
         #[cfg(feature = "udp")]
         if udp_elem.len() > 0 {
             let mut set = new_set(&table, 1338, Protocol::UDP).unwrap();
             udp_elem.iter().for_each(|p| set.add(p));
-            set.elems_iter().for_each(|e| batch.add(&e, MsgType::Add));
+            set.elems_iter().for_each(|e| batch.add(&e, action));
         }
 
         let finalized = batch.finalize();
         send_batch(&finalized)?;
 
         Ok(())
+    }
+}
+
+impl PortManager for NfTable {
+    fn add_ports(&mut self, ports: &[Port]) -> Result<(), Error> {
+        self.add_remove_ports(ports, MsgType::Add)
+    }
+
+    fn remove_ports(&mut self, ports: &[Port]) -> Result<(), Error> {
+        self.add_remove_ports(ports, MsgType::Del)
     }
 }
 
