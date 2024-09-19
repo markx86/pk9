@@ -15,7 +15,9 @@ pub fn run_with(
 ) -> Result<(), Error> {
     let mut queue = NfQueue::new()?;
     let mut table = NfTable::new(format!("{app_name}-pk9").as_str(), role)?;
-    table.add_ports(ports)?;
+    if ports.len() > 0 {
+        table.add_ports(ports)?;
+    }
     queue.run_with(&mut table, actions)?;
     Ok(())
 }

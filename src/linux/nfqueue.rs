@@ -39,8 +39,10 @@ impl NfQueue {
                 Err(e) => {
                     if let Some(errno) = e.raw_os_error() {
                         if errno == EWOULDBLOCK || errno == EAGAIN {
-                            actions.busy_wait(table);
-                            continue;
+                            if actions.busy_wait(table) {
+                                continue;
+                            }
+                            return Ok(());
                         }
                     }
                     return Err(e);

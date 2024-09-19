@@ -47,6 +47,7 @@ impl Display for NfHook {
     }
 }
 
+#[allow(unused_variables)]
 fn new_rules<'a>(
     chain: &'a Chain,
     hook: NfHook,
@@ -138,7 +139,7 @@ fn send_batch(finalized: &FinalizedBatch) -> Result<(), Error> {
     let socket = Socket::new(Bus::Netfilter)?;
     socket.send_all(finalized)?;
     let port_id = socket.portid();
-    let mut buffer = vec![0; nft_nlmsg_maxsize() as usize];
+    let mut buffer = vec![0; nft_nlmsg_maxsize() as _];
     let seq = 2;
     while let Some(msg) = socket_recv(&socket, &mut buffer[..])? {
         match cb_run(msg, seq, port_id)? {
