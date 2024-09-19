@@ -39,8 +39,8 @@ impl IpHeader {
     }
 }
 
-pub fn unwrap_ip_packet(payload: &[u8]) -> Option<(IpHeader, &[u8])> {
-    let ip_version = if let Some(v) = payload.get(0) {
+pub fn unwrap_ip_packet(packet: &[u8]) -> Option<(IpHeader, &[u8])> {
+    let ip_version = if let Some(v) = packet.get(0) {
         (*v & 0xf0) >> 4
     } else {
         return None;
@@ -48,25 +48,25 @@ pub fn unwrap_ip_packet(payload: &[u8]) -> Option<(IpHeader, &[u8])> {
     let ip_header = match ip_version {
         4 => {
             println!("[*] packet is ipv4");
-            if payload.len() < 20 {
+            if packet.len() < 20 {
                 eprintln!("[-] invalid ipv4 packet: payload length is less than the minimum size");
                 return None;
             }
-            let total_size = u16::from_be_bytes(payload[2..4].try_into().unwrap()) as usize;
-            if payload.len() < total_size {
+            let total_size = u16::from_be_bytes(packet[2..4].try_into().unwrap()) as usize;
+            if packet.len() < total_size {
                 eprintln!(
                     "[-] invalid ipv4 packet: payload length is shorter than the reported size"
                 );
                 return None;
             }
-            let l4_protocol = payload[9];
-            let l4_offset = ((payload[0] & 0xf) as usize) << 2;
+            let l4_protocol = packet[9];
+            let l4_offset = ((packet[0] & 0xf) as usize) << 2;
             let l4_length = total_size - l4_offset;
             let src_address =
-                IpAddress::IPv4(u32::from_be_bytes(payload[12..16].try_into().unwrap()));
+                IpAddress::IPv4(u32::from_be_bytes(packet[12..16].try_into().unwrap()));
             let dst_address =
-                IpAddress::IPv4(u32::from_be_bytes(payload[16..20].try_into().unwrap()));
-            let raw = payload[..l4_offset].to_vec();
+                IpAddress::IPv4(u32::from_be_bytes(packet[16..20].try_into().unwrap()));
+            let raw = packet[..l4_offset].to_vec();
             IpHeader {
                 raw,
                 ip_type: IpType::IPv4,
@@ -79,19 +79,25 @@ pub fn unwrap_ip_packet(payload: &[u8]) -> Option<(IpHeader, &[u8])> {
         }
         6 => {
             println!("[*] packet is ipv6");
-            if payload.len() < 40 {
+            if packet.len() < 40 {
                 eprintln!("[-] invalid ipv6 packet: payload length is less than the minimum size");
                 return None;
             }
-            let total_size = u16::from_be_bytes(payload[4..6].try_into().unwrap()) as usize;
-            if payload.len() < total_size {
+            let payload_length = u16::from_be_bytes(packet[4..6].try_into().unwrap()) as usize;
+            let total_size = if payload_length == 0 {
+                // IPv6 packets may have 0 in the "Payload Length" field
+                packet.len()
+            } else {
+                payload_length + 40
+            };
+            if packet.len() < total_size {
                 eprintln!(
-                    "[-] invalid ipv6 packet: payload length is shorter than the reported size"
+                    "[-] invalid ipv6 packet: packet length is shorter than the reported size"
                 );
                 return None;
             }
             let mut cur = 40;
-            let mut next = payload[6];
+            let mut next = packet[6];
             while next == 0
                 || next == 43
                 || next == 44
@@ -108,20 +114,21 @@ pub fn unwrap_ip_packet(payload: &[u8]) -> Option<(IpHeader, &[u8])> {
                 }
                 let size = match next {
                     44 => 8,
-                    51 => (payload[cur + 1] as usize + 2) << 2,
-                    _ => (payload[cur + 1] as usize + 1) << 3,
+                    51 => ((packet[cur + 1] as usize) << 2) + 2,
+                    _ => (packet[cur + 1] as usize + 1) << 3,
                 };
-                next = payload[cur];
+                next = packet[cur];
                 cur += size;
             }
             let l4_protocol = next;
             let l4_offset = cur;
+            assert!(l4_offset < total_size);
             let l4_length = total_size - l4_offset;
             let src_address =
-                IpAddress::IPv6(u128::from_be_bytes(payload[8..24].try_into().unwrap()));
+                IpAddress::IPv6(u128::from_be_bytes(packet[8..24].try_into().unwrap()));
             let dst_address =
-                IpAddress::IPv6(u128::from_be_bytes(payload[24..40].try_into().unwrap()));
-            let raw = payload[..l4_offset].to_vec();
+                IpAddress::IPv6(u128::from_be_bytes(packet[24..40].try_into().unwrap()));
+            let raw = packet[..l4_offset].to_vec();
             IpHeader {
                 raw,
                 ip_type: IpType::IPv6,
@@ -137,7 +144,7 @@ pub fn unwrap_ip_packet(payload: &[u8]) -> Option<(IpHeader, &[u8])> {
             return None;
         }
     };
-    let data = &payload[ip_header.l4_offset..];
+    let data = &packet[ip_header.l4_offset..];
     Some((ip_header, data))
 }
 
