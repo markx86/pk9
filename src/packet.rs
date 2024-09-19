@@ -39,7 +39,21 @@ impl IpHeader {
     }
 }
 
+#[cfg(feature = "pkt-dump")]
+fn dump_packet(packet: &[u8]) {
+    for i in 0..packet.len() {
+        print!("{:02x} ", packet[i]);
+        if (i + 1) % 4 == 0 {
+            println!();
+        }
+    }
+    println!();
+}
+
 pub fn unwrap_ip_packet(packet: &[u8]) -> Option<(IpHeader, &[u8])> {
+    #[cfg(feature = "pkt-dump")]
+    dump_packet(packet);
+
     let ip_version = if let Some(v) = packet.get(0) {
         (*v & 0xf0) >> 4
     } else {

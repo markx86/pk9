@@ -18,6 +18,7 @@ udp = []
 tcp = []
 input = []
 output = []
+pkt-dump = []
 
 [profile.release]
 lto = true          # Enable link-time optimization
