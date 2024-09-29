@@ -7,7 +7,7 @@ use nftnl::{
     Batch, Chain, FinalizedBatch, Hook, MsgType, Policy, ProtoFamily, Rule, Table,
 };
 
-use crate::{Port, PortManager, Protocol, Role};
+use crate::{Port, PortManager, Protocol, Role, IPPROTO_TCP, IPPROTO_UDP};
 
 const FAMILY: ProtoFamily = ProtoFamily::Inet;
 
@@ -61,7 +61,7 @@ fn new_rules<'a>(
             let tcp_set = tcp_set.unwrap();
             let mut tcp_rule = Rule::new(chain);
             tcp_rule.add_expr(&nft_expr!(meta l4proto));
-            tcp_rule.add_expr(&nft_expr!(cmp == libc::IPPROTO_TCP as u8));
+            tcp_rule.add_expr(&nft_expr!(cmp == IPPROTO_TCP as u8));
             tcp_rule.add_expr(
                 &(if (role == Role::Client && hook == NfHook::Out)
                     || (role == Role::Server && hook == NfHook::In)
@@ -80,7 +80,7 @@ fn new_rules<'a>(
             let udp_set = udp_set.unwrap();
             let mut udp_rule = Rule::new(chain);
             udp_rule.add_expr(&nft_expr!(meta l4proto));
-            udp_rule.add_expr(&nft_expr!(cmp == libc::IPPROTO_UDP as u8));
+            udp_rule.add_expr(&nft_expr!(cmp == IPPROTO_UDP as u8));
             udp_rule.add_expr(
                 &(if (role == Role::Client && hook == NfHook::Out)
                     || (role == Role::Server && hook == NfHook::In)

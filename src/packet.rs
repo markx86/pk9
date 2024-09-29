@@ -1,3 +1,6 @@
+pub const IPPROTO_TCP: i32 = 6;
+pub const IPPROTO_UDP: i32 = 17;
+
 pub enum Verdict {
     Pass,
     Drop,
@@ -210,7 +213,7 @@ fn compute_checksum(ip_header: &IpHeader, l4_header: &[u8], l4_payload: &[u8]) -
         .unwrap();
     checksum = (checksum >> 16) + (checksum & 0xffff);
     checksum += checksum >> 16;
-    let checksum = if checksum == 0xffff && ip_header.l4_protocol as i32 == libc::IPPROTO_UDP {
+    let checksum = if checksum == 0xffff && ip_header.l4_protocol as i32 == IPPROTO_UDP {
         checksum as u16
     } else {
         !(checksum as u16)
@@ -420,7 +423,7 @@ pub fn unwrap_l4_packet<'a>(
 ) -> Option<(L4Header, &'a [u8])> {
     let l4_header = match ip_header.l4_protocol as i32 {
         #[cfg(feature = "tcp")]
-        libc::IPPROTO_TCP => {
+        IPPROTO_TCP => {
             if let Some(tcp_header) = TcpHeader::from(&payload) {
                 L4Header::TCP(tcp_header)
             } else {
@@ -428,7 +431,7 @@ pub fn unwrap_l4_packet<'a>(
             }
         }
         #[cfg(feature = "udp")]
-        libc::IPPROTO_UDP => {
+        IPPROTO_UDP => {
             if let Some(udp_header) = UdpHeader::from(&payload) {
                 L4Header::UDP(udp_header)
             } else {
